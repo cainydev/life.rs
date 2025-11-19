@@ -1,88 +1,53 @@
-use std::collections::HashSet;
-
+use crate::plugins::mouse_position::{MouseGridPosition, update_mouse_position};
+use crate::simulation::coords::{CELL_WIDTH, cell_to_world};
+use crate::simulation::universe::Universe;
+use bevy::platform::collections::HashSet;
 use bevy::prelude::*;
-
-use crate::{
-    CELL_WIDTH, CellAssets, Position, SpawnCellEvent,
-    plugins::mouse_position::{MouseGridPosition, update_mouse_position},
-    setup_assets,
-};
 
 pub struct MouseDrawPlugin;
 
 impl Plugin for MouseDrawPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, spawn_hover_ghost.after(setup_assets));
+        app.init_resource::<DrawingBuffer>(); // Unser temporärer Speicher
         app.add_systems(
             Update,
-            (update_hover_ghost, update_drawing_set).after(update_mouse_position),
+            (
+                draw_hover_cursor,   // Zeigt aktuellen Maus-Cursor
+                accumulate_drawing,  // Sammelt Punkte beim Ziehen in den Buffer
+                draw_buffer_preview, // Malt den Buffer (Vorschau)
+                commit_drawing,      // Überträgt Buffer ins Universum beim Loslassen
+            )
+                .after(update_mouse_position),
         );
     }
 }
 
-#[derive(Component)]
-struct HoverGhost;
-
-#[derive(Component)]
-struct DrawingGhost;
-
-fn spawn_hover_ghost(mut commands: Commands, cell_assets: Res<CellAssets>) {
-    let ghost_pos = Position { x: 0, y: 0 };
-
-    commands.spawn((
-        HoverGhost,
-        ghost_pos,
-        Mesh2d(cell_assets.mesh.clone()),
-        MeshMaterial2d(cell_assets.ghost_material.clone()),
-        Transform::from_xyz(
-            ghost_pos.x as f32 * CELL_WIDTH,
-            ghost_pos.y as f32 * CELL_WIDTH,
-            0.5,
-        ),
-        Visibility::Hidden,
-    ));
+#[derive(Resource, Default)]
+struct DrawingBuffer {
+    pub positions: HashSet<IVec2>,
 }
 
-fn update_hover_ghost(
-    mouse_position_res: Res<MouseGridPosition>,
-    mut hover_ghost_query: Query<(&mut Visibility, &mut Transform), With<HoverGhost>>,
-) {
-    let Ok((mut visibility, mut transform)) = hover_ghost_query.single_mut() else {
-        return;
-    };
-
-    let Some(mouse_position) = mouse_position_res.cur else {
-        *visibility = Visibility::Hidden;
-        return;
-    };
-
-    *visibility = Visibility::Visible;
-    transform.translation.x = mouse_position.x as f32 * CELL_WIDTH;
-    transform.translation.y = mouse_position.y as f32 * CELL_WIDTH;
+fn draw_hover_cursor(mouse_position_res: Res<MouseGridPosition>, mut gizmos: Gizmos) {
+    if let Some(pos) = mouse_position_res.cur {
+        gizmos.rect_2d(
+            Isometry2d::from_translation(cell_to_world(pos)),
+            Vec2::splat(CELL_WIDTH * 0.9),
+            Color::srgb(0.5, 0.5, 0.5).with_alpha(0.3),
+        );
+    }
 }
 
-fn update_drawing_set(
-    mut commands: Commands,
+fn accumulate_drawing(
+    mut buffer: ResMut<DrawingBuffer>,
     mouse_position_res: Res<MouseGridPosition>,
     buttons: Res<ButtonInput<MouseButton>>,
-    keys: Res<ButtonInput<KeyCode>>,
-    draw_ghost_query: Query<(Entity, &Position), With<DrawingGhost>>,
-    cell_assets: Res<CellAssets>,
 ) {
     if !buttons.pressed(MouseButton::Left) {
-        // if mouse is not pressed and no CTRL key is pressed, spawn cells
-        if !keys.any_pressed([KeyCode::ControlLeft, KeyCode::ControlRight]) {
-            for (entity, pos) in draw_ghost_query.iter() {
-                commands.trigger(SpawnCellEvent::new(pos.x, pos.y));
-                commands.entity(entity).despawn();
-            }
-        }
-
         return;
     }
 
     let cur_pos = match mouse_position_res.cur {
-        Some(pos) => pos,
+        Some(p) => p,
         None => return,
     };
 
@@ -92,60 +57,67 @@ fn update_drawing_set(
         mouse_position_res.prev.unwrap_or(cur_pos)
     };
 
-    let existing: HashSet<Position> = draw_ghost_query.iter().map(|(_, pos)| *pos).collect();
-
-    // Calculate deltas
-    let mut dx = cur_pos.x - prev_pos.x;
-    let mut dy = cur_pos.y - prev_pos.y;
-
-    let incx = dx.signum();
-    let incy = dy.signum();
-
-    dx = dx.abs();
-    dy = dy.abs();
-
-    let (pdx, pdy, ddx, ddy, delta_slow, delta_fast) = if dx > dy {
-        (incx, 0, incx, incy, dy, dx)
-    } else {
-        (0, incy, incx, incy, dx, dy)
-    };
-
+    // --- Bresenham Algorithmus (Linieninterpolation) ---
+    // Verhindert Lücken im Buffer bei schnellen Bewegungen
     let mut x = prev_pos.x;
     let mut y = prev_pos.y;
-    let mut err = delta_fast / 2;
 
-    // Draw the first pixel
-    let pos = Position { x, y };
-    if !existing.contains(&pos) {
-        commands.spawn((
-            DrawingGhost,
-            pos,
-            Mesh2d(cell_assets.mesh.clone()),
-            MeshMaterial2d(cell_assets.ghost_material.clone()),
-            Transform::from_xyz(x as f32 * CELL_WIDTH, y as f32 * CELL_WIDTH, 0.5),
-        ));
-    }
+    let dx = (cur_pos.x - prev_pos.x).abs();
+    let dy = (cur_pos.y - prev_pos.y).abs();
 
-    for _ in 0..delta_fast {
-        err -= delta_slow;
-        if err < 0 {
-            err += delta_fast;
-            x += ddx;
-            y += ddy;
-        } else {
-            x += pdx;
-            y += pdy;
+    let sx = if prev_pos.x < cur_pos.x { 1 } else { -1 };
+    let sy = if prev_pos.y < cur_pos.y { 1 } else { -1 };
+
+    let mut err = if dx > dy { dx } else { -dy } / 2;
+
+    loop {
+        // WICHTIG: Wir schreiben in den Buffer, NICHT ins Universe
+        buffer.positions.insert(IVec2::new(x, y));
+
+        if x == cur_pos.x && y == cur_pos.y {
+            break;
         }
 
-        let pos = Position { x, y };
-        if !existing.contains(&pos) {
-            commands.spawn((
-                DrawingGhost,
-                pos,
-                Mesh2d(cell_assets.mesh.clone()),
-                MeshMaterial2d(cell_assets.ghost_material.clone()),
-                Transform::from_xyz(x as f32 * CELL_WIDTH, y as f32 * CELL_WIDTH, 0.5),
-            ));
+        let e2 = err;
+        if e2 > -dx {
+            err -= dy;
+            x += sx;
+        }
+        if e2 < dy {
+            err += dx;
+            y += sy;
+        }
+    }
+}
+
+fn draw_buffer_preview(buffer: Res<DrawingBuffer>, mut gizmos: Gizmos) {
+    for &pos in &buffer.positions {
+        let center = Vec2::new(
+            pos.x as f32 * CELL_WIDTH + (CELL_WIDTH / 2.0),
+            pos.y as f32 * CELL_WIDTH + (CELL_WIDTH / 2.0),
+        );
+
+        gizmos.rect_2d(
+            Isometry2d::from_translation(center),
+            Vec2::splat(CELL_WIDTH * 0.9),
+            Color::srgb(0.0, 0.8, 0.8).with_alpha(0.8),
+        );
+    }
+}
+
+fn commit_drawing(
+    mut universe: ResMut<Universe>,
+    mut buffer: ResMut<DrawingBuffer>,
+    keys: Res<ButtonInput<KeyCode>>,
+    mouse: Res<ButtonInput<MouseButton>>,
+) {
+    if !mouse.pressed(MouseButton::Left)
+        && !keys.any_pressed([KeyCode::ControlLeft, KeyCode::ControlRight])
+    {
+        if !buffer.positions.is_empty() {
+            for pos in buffer.positions.drain() {
+                universe.set_cell(pos, true);
+            }
         }
     }
 }

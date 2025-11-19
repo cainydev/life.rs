@@ -1,6 +1,6 @@
 use bevy::{prelude::*, window::PrimaryWindow};
 
-use crate::{CELL_WIDTH, Position};
+use crate::simulation::coords::world_to_cell;
 
 pub struct MousePositionPlugin;
 
@@ -8,14 +8,14 @@ impl Plugin for MousePositionPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<MouseGridPosition>();
         app.init_resource::<MousePixelPosition>();
-        app.add_systems(FixedUpdate, update_mouse_position);
+        app.add_systems(PreUpdate, update_mouse_position);
     }
 }
 
 #[derive(Resource, Default)]
 pub struct MouseGridPosition {
-    pub prev: Option<Position>,
-    pub cur: Option<Position>,
+    pub prev: Option<IVec2>,
+    pub cur: Option<IVec2>,
 }
 
 #[derive(Resource, Default)]
@@ -44,13 +44,7 @@ pub fn update_mouse_position(
         mouse_pixel_pos.cur = Some(screen_pos);
 
         if let Ok(world_pos) = camera.viewport_to_world_2d(camera_transform, screen_pos) {
-            let grid_x = (world_pos.x / CELL_WIDTH).round() as i32;
-            let grid_y = (world_pos.y / CELL_WIDTH).round() as i32;
-
-            mouse_grid_pos.cur = Some(Position {
-                x: grid_x,
-                y: grid_y,
-            });
+            mouse_grid_pos.cur = Some(world_to_cell(world_pos));
         } else {
             mouse_grid_pos.cur = None;
         }

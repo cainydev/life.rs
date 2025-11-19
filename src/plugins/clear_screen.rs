@@ -1,6 +1,5 @@
-use bevy::prelude::*;
-
-use crate::Cell;
+use crate::simulation::universe::Universe;
+use bevy::prelude::*; // Importiere das neue Universe
 
 pub struct ClearScreenPlugin;
 
@@ -10,14 +9,9 @@ impl Plugin for ClearScreenPlugin {
     }
 }
 
-fn clear_screen(
-    mut commands: Commands,
-    keys: Res<ButtonInput<KeyCode>>,
-    cell_query: Query<Entity, With<Cell>>,
-) {
+fn clear_screen(mut universe: ResMut<Universe>, keys: Res<ButtonInput<KeyCode>>) {
     if keys.just_pressed(KeyCode::KeyC) {
-        for c in cell_query.iter() {
-            commands.entity(c).despawn();
-        }
+        universe.chunks.clear();
+        println!("Screen cleared (Chunks dropped)");
     }
 }

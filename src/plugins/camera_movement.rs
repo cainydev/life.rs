@@ -1,5 +1,3 @@
-use std::f32;
-
 use bevy::{input::mouse::MouseWheel, prelude::*, window::PrimaryWindow};
 
 pub struct CameraMovementPlugin;
@@ -22,7 +20,7 @@ struct CameraMovementState {
 }
 
 #[derive(Resource)]
-struct CameraMovementSettings {
+pub struct CameraMovementSettings {
     pub zoom_sensitivity: f32,
     pub min_zoom: f32,
     pub max_zoom: f32,
@@ -32,8 +30,8 @@ impl Default for CameraMovementSettings {
     fn default() -> Self {
         Self {
             zoom_sensitivity: 0.1,
-            min_zoom: 0.1,
-            max_zoom: f32::MAX,
+            min_zoom: 0.0,
+            max_zoom: 1000.0, // f32::MAX ist oft zu extrem für Kameras
         }
     }
 }
@@ -50,7 +48,6 @@ fn start_pan(
     let Ok(window) = windows.single() else {
         return;
     };
-
     let Ok((camera, camera_transform)) = camera_query.single() else {
         return;
     };
@@ -67,6 +64,7 @@ fn start_pan(
         }
     }
 }
+
 fn pan_camera(
     movement_state: Res<CameraMovementState>,
     windows: Query<&Window, With<PrimaryWindow>>,
@@ -77,9 +75,15 @@ fn pan_camera(
         return;
     }
 
-    let window = windows.single().unwrap();
-    let (camera, camera_global_transform) = camera_query.single().unwrap();
-    let mut camera_transform = camera_transform_query.single_mut().unwrap();
+    let Ok(window) = windows.single() else {
+        return;
+    };
+    let Ok((camera, camera_global_transform)) = camera_query.single() else {
+        return;
+    };
+    let Ok(mut camera_transform) = camera_transform_query.single_mut() else {
+        return;
+    };
 
     if let (Some(cursor_pos), Some(last_cursor_world_pos)) = (
         window.cursor_position(),
@@ -89,7 +93,6 @@ fn pan_camera(
             camera.viewport_to_world_2d(camera_global_transform, cursor_pos)
         {
             let world_delta = last_cursor_world_pos - current_cursor_world_pos;
-
             camera_transform.translation.x += world_delta.x;
             camera_transform.translation.y += world_delta.y;
         }
@@ -109,7 +112,9 @@ fn zoom_camera(
     let Ok(mut camera_transform) = camera_transform_query.single_mut() else {
         return;
     };
-    let window = windows.single().unwrap();
+    let Ok(window) = windows.single() else {
+        return;
+    };
 
     for ev in scroll_events.read() {
         let target_world_pos = window
@@ -122,23 +127,17 @@ fn zoom_camera(
             .unwrap_or(camera_transform.translation.xy());
 
         let zoom_factor = 1.0 - (ev.y * settings.zoom_sensitivity);
-
         let old_scale = camera_transform.scale.x;
+        let new_scale = (old_scale * zoom_factor).clamp(settings.min_zoom, settings.max_zoom);
 
-        let new_scale_x = (old_scale * zoom_factor).clamp(settings.min_zoom, settings.max_zoom);
-        let new_scale_y = new_scale_x;
-
-        if (new_scale_x - old_scale).abs() < f32::EPSILON {
+        if (new_scale - old_scale).abs() < f32::EPSILON {
             continue;
         }
 
-        let scale_ratio = new_scale_x / old_scale;
-
-        camera_transform.scale.x = new_scale_x;
-        camera_transform.scale.y = new_scale_y;
+        let scale_ratio = new_scale / old_scale;
+        camera_transform.scale = Vec3::splat(new_scale); // X, Y und Z gleich skalieren
 
         let old_translation = camera_transform.translation.xy();
-
         let new_translation = target_world_pos + (old_translation - target_world_pos) * scale_ratio;
 
         camera_transform.translation.x = new_translation.x;
