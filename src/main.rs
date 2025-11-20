@@ -4,10 +4,15 @@ mod plugins {
     pub mod clear_screen;
     pub mod mouse_draw;
     pub mod mouse_position;
+    pub mod stats_boards;
 }
 
+use bevy::diagnostic::{
+    EntityCountDiagnosticsPlugin, FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin,
+};
 use bevy::{dev_tools::fps_overlay::FpsOverlayPlugin, prelude::*};
 
+use crate::plugins::stats_boards::StatsBoardPlugin;
 use crate::plugins::{
     camera_movement::CameraMovementPlugin, clear_screen::ClearScreenPlugin,
     mouse_draw::MouseDrawPlugin, mouse_position::MousePositionPlugin,
@@ -28,7 +33,12 @@ fn main() {
     }));
 
     app.add_plugins(FpsOverlayPlugin::default());
-    app.insert_resource(Time::<Fixed>::from_hz(144.0));
+    app.insert_resource(Time::<Fixed>::from_hz(12.0));
+
+    app.add_plugins((
+        EntityCountDiagnosticsPlugin::default(),
+        LogDiagnosticsPlugin::default(),
+    ));
 
     // 2. Game Plugin
     app.add_plugins(SimulationPlugin);
@@ -38,6 +48,7 @@ fn main() {
     app.add_plugins(MousePositionPlugin);
     app.add_plugins(MouseDrawPlugin);
     app.add_plugins(CameraMovementPlugin);
+    app.add_plugins(StatsBoardPlugin);
 
     // 4. Setup Systems
     app.add_systems(Startup, spawn_camera);

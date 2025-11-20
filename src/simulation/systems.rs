@@ -76,7 +76,7 @@ pub fn tick_universe(mut universe: ResMut<Universe>) {
 
     let total = start_total.elapsed();
     if total.as_micros() > 100 {
-        println!("Tick: {:?} (Compute: {:?})", total, compute_duration);
+        //println!("Tick: {:?} (Compute: {:?})", total, compute_duration);
     }
 }
 

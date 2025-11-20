@@ -46,9 +46,13 @@ fn start_pan(
     camera_query: Query<(&Camera, &GlobalTransform), With<Camera2d>>,
 ) {
     let Ok(window) = windows.single() else {
+        movement_state.panning = false;
+        movement_state.last_cursor_world_pos = None;
         return;
     };
     let Ok((camera, camera_transform)) = camera_query.single() else {
+        movement_state.panning = false;
+        movement_state.last_cursor_world_pos = None;
         return;
     };
 
@@ -66,7 +70,7 @@ fn start_pan(
 }
 
 fn pan_camera(
-    movement_state: Res<CameraMovementState>,
+    mut movement_state: ResMut<CameraMovementState>,
     windows: Query<&Window, With<PrimaryWindow>>,
     camera_query: Query<(&Camera, &GlobalTransform), With<Camera2d>>,
     mut camera_transform_query: Query<&mut Transform, With<Camera2d>>,
@@ -96,6 +100,9 @@ fn pan_camera(
             camera_transform.translation.x += world_delta.x;
             camera_transform.translation.y += world_delta.y;
         }
+    } else {
+        movement_state.panning = false;
+        movement_state.last_cursor_world_pos = None;
     }
 }
 
