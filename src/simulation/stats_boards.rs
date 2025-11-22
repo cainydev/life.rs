@@ -48,11 +48,10 @@ fn setup_stats_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
                 bottom: Val::Px(10.0),
                 left: Val::Px(10.0),
                 padding: UiRect::all(Val::Px(10.0)),
-                // Semi-transparent background for readability
                 ..default()
             },
             BackgroundColor(Color::BLACK.with_alpha(0.7)),
-            GlobalZIndex(100), // Ensure it sits on top of everything
+            GlobalZIndex(100),
         ))
         .with_children(|parent| {
             parent.spawn((
@@ -85,9 +84,4 @@ fn update_stats_display(board: Res<StatsBoard>, mut query: Query<&mut Text, With
             }
         }
     }
-}
-
-fn random_stats_system(time: Res<Time>, mut stats: ResMut<StatsBoard>) {
-    stats.insert("Game Version", "0.1.0");
-    stats.insert("Time Elapsed", format!("{:.2}", time.elapsed_secs()));
 }

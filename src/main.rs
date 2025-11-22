@@ -1,24 +1,8 @@
 mod simulation;
-mod plugins {
-    pub mod camera_movement;
-    pub mod clear_screen;
-    pub mod mouse_draw;
-    pub mod mouse_position;
-    pub mod stats_boards;
-}
 
-use bevy::diagnostic::{
-    EntityCountDiagnosticsPlugin, FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin,
-};
 use bevy::{dev_tools::fps_overlay::FpsOverlayPlugin, prelude::*};
 
-use crate::plugins::stats_boards::StatsBoardPlugin;
-use crate::plugins::{
-    camera_movement::CameraMovementPlugin, clear_screen::ClearScreenPlugin,
-    mouse_draw::MouseDrawPlugin, mouse_position::MousePositionPlugin,
-};
-
-use crate::simulation::plugin::SimulationPlugin;
+use crate::simulation::SimulationPlugin;
 use crate::simulation::universe::Universe;
 
 fn main() {
@@ -33,24 +17,10 @@ fn main() {
     }));
 
     app.add_plugins(FpsOverlayPlugin::default());
-    app.insert_resource(Time::<Fixed>::from_hz(12.0));
+    app.insert_resource(Time::<Fixed>::from_hz(3.0));
 
-    app.add_plugins((
-        EntityCountDiagnosticsPlugin::default(),
-        LogDiagnosticsPlugin::default(),
-    ));
-
-    // 2. Game Plugin
     app.add_plugins(SimulationPlugin);
 
-    // 3. Tools & Interaction
-    app.add_plugins(ClearScreenPlugin);
-    app.add_plugins(MousePositionPlugin);
-    app.add_plugins(MouseDrawPlugin);
-    app.add_plugins(CameraMovementPlugin);
-    app.add_plugins(StatsBoardPlugin);
-
-    // 4. Setup Systems
     app.add_systems(Startup, spawn_camera);
     app.add_systems(Startup, spawn_initial_pattern);
 
@@ -58,10 +28,7 @@ fn main() {
 }
 
 fn spawn_camera(mut commands: Commands) {
-    commands.spawn((
-        Camera2d,
-        Transform::from_xyz(0.0, 0.0, 0.0).with_scale(Vec3::splat(0.5)),
-    ));
+    commands.spawn((Camera2d, Transform::default()));
 }
 
 fn spawn_initial_pattern(mut universe: ResMut<Universe>) {
