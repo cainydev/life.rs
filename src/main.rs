@@ -1,7 +1,7 @@
 mod simulation;
 
 use bevy::math::I64Vec2;
-use bevy::{dev_tools::fps_overlay::FpsOverlayPlugin, prelude::*};
+use bevy::prelude::*;
 
 use crate::simulation::SimulationPlugin;
 use crate::simulation::universe::Universe;

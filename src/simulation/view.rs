@@ -1,5 +1,5 @@
-use bevy::input::mouse::{MouseScrollUnit, MouseWheel};
-use bevy::math::{DVec2, I64Vec2, IVec2, Vec2};
+use bevy::input::mouse::MouseWheel;
+use bevy::math::{DVec2, I64Vec2, Vec2};
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 

@@ -128,6 +128,7 @@ impl HashLifeCache {
         node
     }
 
+    #[allow(unused)]
     /// Removes unreferenced nodes from the internal map.
     pub fn collect_garbage(&mut self) -> usize {
         let before = self.map.len();

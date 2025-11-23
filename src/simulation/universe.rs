@@ -48,10 +48,12 @@ impl Default for Universe {
 }
 
 impl Universe {
+    #[allow(unused)]
     pub fn read_engine(&self) -> std::sync::RwLockReadGuard<'_, Box<dyn LifeEngine>> {
         self.engine.read().unwrap()
     }
 
+    #[allow(unused)]
     pub fn set_cell(&mut self, pos: I64Vec2, alive: bool) {
         if let Ok(mut engine) = self.engine.write() {
             engine.set_cell(pos, alive);
@@ -70,6 +72,7 @@ impl Universe {
         }
     }
 
+    #[allow(unused)]
     pub fn import(&mut self, cells: Vec<I64Vec2>) {
         if let Ok(mut engine) = self.engine.write() {
             engine.import(&cells);

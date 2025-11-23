@@ -8,17 +8,20 @@ pub struct StatsBoard {
 }
 
 impl StatsBoard {
+    #[allow(unused)]
     /// Insert or update a stat.
     /// Accepts any value that implements Display (f32, int, strings, etc.)
     pub fn insert<V: Display>(&mut self, key: &str, value: V) {
         self.data.insert(key.to_string(), value.to_string());
     }
 
+    #[allow(unused)]
     /// Remove a specific stat
     pub fn remove(&mut self, key: &str) {
         self.data.remove(key);
     }
 
+    #[allow(unused)]
     /// Clear all stats
     pub fn clear(&mut self) {
         self.data.clear();

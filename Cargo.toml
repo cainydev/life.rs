@@ -3,8 +3,12 @@ name = "game_of_life"
 version = "0.3.0"
 edition = "2024"
 
+[features]
+default = []
+dev = ["bevy/dynamic_linking"]
+
 [dependencies]
-bevy = { version = "0.17.2", features = ["dynamic_linking", "bevy_dev_tools", "wayland"] }
+bevy = { version = "0.17.2", features = ["bevy_dev_tools", "wayland"] }
 bytemuck = "1.24.0"
 rand = "0.9.2"
 rayon = "1.11.0"
