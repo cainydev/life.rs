@@ -111,6 +111,7 @@ jobs:
       # --- Native Specific Steps ---
       - name: Archive Native Binaries
         if: matrix.post_build_steps == 'native_archive'
+        shell: bash
         run: |
           CRATE_NAME="${{ env.CRATE_NAME }}"
           cd target/${{ matrix.target }}/release
