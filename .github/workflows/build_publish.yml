@@ -5,6 +5,10 @@ on:
     branches:
       - "master"
 
+permissions:
+  contents: read
+  pages: write
+
 env:
   CRATE_NAME: game_of_life
   CARGO_TERM_COLOR: always
@@ -24,6 +28,8 @@ jobs:
             bin_name: game_of_life
             archive_name: game_of_life-linux-x64.tar.gz
             post_build_steps: "native_archive"
+            profile_args: "--release"
+            profile_dir: "release"
 
           # --- Windows x86_64 ---
           - os: windows-latest
@@ -31,6 +37,8 @@ jobs:
             bin_name: game_of_life.exe
             archive_name: game_of_life-windows-x64.zip
             post_build_steps: "native_archive"
+            profile_args: "--release"
+            profile_dir: "release"
 
           # --- WebAssembly (WASM) ---
           - os: ubuntu-latest
@@ -38,6 +46,8 @@ jobs:
             bin_name: game_of_life.wasm
             archive_name: game_of_life-web.zip
             post_build_steps: "wasm_bindgen"
+            profile_args: "--profile wasm-release"
+            profile_dir: "wasm-release"
 
     steps:
       - uses: actions/checkout@v4
@@ -64,31 +74,32 @@ jobs:
           sudo apt-get install -y g++ pkg-config libx11-dev libasound2-dev libudev-dev libwayland-dev libxkbcommon-dev
 
       - name: Build for ${{ matrix.target }}
-        run: cargo build --release --target ${{ matrix.target }}
+        run: cargo build ${{ matrix.profile_args }} --target ${{ matrix.target }}
 
       # --- WASM Specific Steps ---
       - name: Configure and Bundle WASM
         if: matrix.post_build_steps == 'wasm_bindgen'
         run: |
-          # 3. Use the Global ENV variable in scripts
-          # The shell can now access the variable we defined at the top
           CRATE_NAME="${{ env.CRATE_NAME }}"
 
           cargo install wasm-bindgen-cli
 
-          CRATE_BIN_PATH="./target/wasm32-unknown-unknown/release/$CRATE_NAME.wasm"
+          CRATE_BIN_PATH="./target/wasm32-unknown-unknown/${{ matrix.profile_dir }}/$CRATE_NAME.wasm"
           OUT_DIR="dist"
           OUT_NAME="index"
 
           mkdir -p $OUT_DIR
           cp -r assets $OUT_DIR/ || true
 
+          # Copy web/ contents if using the web folder structure (Optional based on your preference)
+          # cp -r web/* $OUT_DIR/ || true
+
           wasm-bindgen --no-typescript --target web \
               --out-dir $OUT_DIR \
               --out-name $OUT_NAME \
               $CRATE_BIN_PATH
 
-          # Create index.html with the correct title
+          # Create index.html (This echoes the file content)
           echo "<!DOCTYPE html>
           <html>
           <head>
@@ -105,7 +116,6 @@ jobs:
           </body>
           </html>" > $OUT_DIR/index.html
 
-          # Use the matrix archive name for the zip
           zip -r ${{ matrix.archive_name }} $OUT_DIR
 
       # --- Native Specific Steps ---
@@ -114,7 +124,8 @@ jobs:
         shell: bash
         run: |
           CRATE_NAME="${{ env.CRATE_NAME }}"
-          cd target/${{ matrix.target }}/release
+
+          cd target/${{ matrix.target }}/${{ matrix.profile_dir }}
 
           if [ "${{ matrix.os }}" == "windows-latest" ]; then
             7z a ${CRATE_NAME}-windows-x64.zip ${CRATE_NAME}.exe
