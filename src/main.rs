@@ -12,6 +12,7 @@ fn main() {
     app.add_plugins(DefaultPlugins.set(WindowPlugin {
         primary_window: Some(Window {
             canvas: Some("#bevy-canvas".into()),
+            fit_canvas_to_parent: true,
             ..default()
         }),
         ..default()

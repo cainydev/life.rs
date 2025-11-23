@@ -101,8 +101,8 @@ jobs:
               <meta charset=\"utf-8\">
               <title>$CRATE_NAME</title>
               <style>
-                  html, body { margin: 0; padding: 0; overflow: hidden; background-color: #000000; }
-                  #bevy-canvas { display: block; width: 100dvw; height: 100dvh; overflow: hidden; }
+                  html, body { margin: 0; padding: 0; width: 100dvw; height: 100dvh; overflow: hidden; background-color: #000000; }
+                  #bevy-canvas { display: block; width: 100% !important; height: 100% !important; }
               </style>
           </head>
           <body>
