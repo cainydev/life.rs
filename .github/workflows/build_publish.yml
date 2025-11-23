@@ -3,7 +3,7 @@ name: Release & Pages Deployment
 on:
   push:
     tags:
-      - "v*"
+      - "v*" # Trigger only on version tags (e.g., v1.0.0)
 
 permissions:
   contents: write
@@ -27,7 +27,8 @@ jobs:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             bin_name: game_of_life
-            archive_name: game_of_life-linux-x64.tar.gz
+            # CHANGED: No longer a .tar.gz, just the binary name
+            asset_name: game_of_life-linux-x64
             post_build_steps: "native_archive"
             profile_args: "--release"
             profile_dir: "release"
@@ -36,7 +37,8 @@ jobs:
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             bin_name: game_of_life.exe
-            archive_name: game_of_life-windows-x64.zip
+            # CHANGED: No longer a .zip, just the .exe
+            asset_name: game_of_life-windows-x64.exe
             post_build_steps: "native_archive"
             profile_args: "--release"
             profile_dir: "release"
@@ -45,7 +47,8 @@ jobs:
           - os: ubuntu-latest
             target: wasm32-unknown-unknown
             bin_name: game_of_life.wasm
-            archive_name: game_of_life-web.zip
+            # WASM MUST be zipped because it contains multiple files (html, js, wasm, assets)
+            asset_name: game_of_life-web.zip
             post_build_steps: "wasm_bindgen"
             profile_args: "--profile wasm-release"
             profile_dir: "wasm-release"
@@ -85,7 +88,6 @@ jobs:
           mkdir -p $OUT_DIR
           cp -r assets $OUT_DIR/ || true
 
-          # If you later want to use your custom web/index.html, uncomment this:
           # cp -r web/* $OUT_DIR/ || true
 
           wasm-bindgen --no-typescript --target web \
@@ -93,15 +95,14 @@ jobs:
               --out-name $OUT_NAME \
               $CRATE_BIN_PATH
 
-          # FIX: Changed script to type="module" and added init() call
           echo "<!DOCTYPE html>
           <html>
           <head>
               <meta charset=\"utf-8\">
               <title>$CRATE_NAME</title>
               <style>
-                  html, body { margin: 0; padding: 0; width: 100dvw; height: 100dvh; overflow: hidden; background-color: #000000; }
-                  #bevy-canvas { display: block; width: 100%; height: 100%; }
+                  html, body { margin: 0; padding: 0; overflow: hidden; background-color: #000000; }
+                  #bevy-canvas { display: block; width: 100dvw; height: 100dvh; overflow: hidden; }
               </style>
           </head>
           <body>
@@ -117,9 +118,9 @@ jobs:
           </body>
           </html>" > $OUT_DIR/index.html
 
-          zip -r ${{ matrix.archive_name }} $OUT_DIR
+          # WASM is still zipped
+          zip -r ${{ matrix.asset_name }} $OUT_DIR
 
-      # --- Upload Artifact for Pages (Only on WASM) ---
       - name: Upload Pages Artifact
         if: matrix.post_build_steps == 'wasm_bindgen'
         uses: actions/upload-pages-artifact@v3
@@ -127,27 +128,21 @@ jobs:
           path: dist
 
       # --- Native Specific Steps ---
-      - name: Archive Native Binaries
+      - name: Prepare Native Binaries
         if: matrix.post_build_steps == 'native_archive'
         shell: bash
         run: |
-          CRATE_NAME="${{ env.CRATE_NAME }}"
-
           cd target/${{ matrix.target }}/${{ matrix.profile_dir }}
 
-          if [ "${{ matrix.os }}" == "windows-latest" ]; then
-            7z a ${CRATE_NAME}-windows-x64.zip ${CRATE_NAME}.exe
-            mv ${CRATE_NAME}-windows-x64.zip ../../../
-          else
-            tar -czvf ${CRATE_NAME}-linux-x64.tar.gz ${CRATE_NAME}
-            mv ${CRATE_NAME}-linux-x64.tar.gz ../../../
-          fi
+          # Move the raw binary to root and rename it to the asset_name (e.g., game-windows.exe)
+          # We use 'mv' which works in Git Bash on Windows too
+          mv ${{ matrix.bin_name }} ../../../${{ matrix.asset_name }}
 
       - name: Upload Release Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.archive_name }}
-          path: ${{ matrix.archive_name }}
+          name: ${{ matrix.asset_name }}
+          path: ${{ matrix.asset_name }}
 
   # --- 2. RELEASE CREATION JOB ---
   release:
@@ -155,11 +150,13 @@ jobs:
     runs-on: ubuntu-latest
     needs: [build]
     steps:
-      - name: Download All Artifacts
+      - name: Download Release Artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
           merge-multiple: true
+          # FIX: Only download our game assets, ignoring the 'github-pages' artifact
+          pattern: game_of_life-*
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -171,7 +168,7 @@ jobs:
   deploy-pages:
     name: Deploy to GitHub Pages
     runs-on: ubuntu-latest
-    needs: [build] # Pages can deploy as soon as the WASM build is ready
+    needs: [build]
 
     environment:
       name: github-pages
