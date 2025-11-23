@@ -2,11 +2,11 @@ name: Release & Pages Deployment
 
 on:
   push:
-    branches:
-      - "master"
+    tags:
+      - "v*"
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -85,6 +85,7 @@ jobs:
           mkdir -p $OUT_DIR
           cp -r assets $OUT_DIR/ || true
 
+          # If you later want to use your custom web/index.html, uncomment this:
           # cp -r web/* $OUT_DIR/ || true
 
           wasm-bindgen --no-typescript --target web \
@@ -92,6 +93,7 @@ jobs:
               --out-name $OUT_NAME \
               $CRATE_BIN_PATH
 
+          # FIX: Changed script to type="module" and added init() call
           echo "<!DOCTYPE html>
           <html>
           <head>
@@ -104,12 +106,20 @@ jobs:
           </head>
           <body>
               <canvas id=\"bevy-canvas\"></canvas>
-              <script src=\"index.js\"></script>
+              <script type=\"module\">
+                  import init from './index.js';
+                  init().catch((error) => {
+                      if (!error.message.startsWith(\"Using exceptions for control flow\")) {
+                          throw error;
+                      }
+                  });
+              </script>
           </body>
           </html>" > $OUT_DIR/index.html
 
           zip -r ${{ matrix.archive_name }} $OUT_DIR
 
+      # --- Upload Artifact for Pages (Only on WASM) ---
       - name: Upload Pages Artifact
         if: matrix.post_build_steps == 'wasm_bindgen'
         uses: actions/upload-pages-artifact@v3
@@ -133,21 +143,35 @@ jobs:
             mv ${CRATE_NAME}-linux-x64.tar.gz ../../../
           fi
 
-      - name: Upload Artifact
+      - name: Upload Release Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.archive_name }}
           path: ${{ matrix.archive_name }}
 
-  # --- 2. PAGES DEPLOYMENT JOB (Modern Method) ---
+  # --- 2. RELEASE CREATION JOB ---
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: [build]
+    steps:
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  # --- 3. PAGES DEPLOYMENT JOB ---
   deploy-pages:
     name: Deploy to GitHub Pages
     runs-on: ubuntu-latest
-    needs: [build]
-
-    permissions:
-      pages: write
-      id-token: write
+    needs: [build] # Pages can deploy as soon as the WASM build is ready
 
     environment:
       name: github-pages
