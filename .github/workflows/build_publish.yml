@@ -6,7 +6,9 @@ on:
       - "master"
 
 permissions:
-  contents: write
+  contents: read
+  pages: write
+  id-token: write
 
 env:
   CRATE_NAME: game_of_life
@@ -108,6 +110,12 @@ jobs:
 
           zip -r ${{ matrix.archive_name }} $OUT_DIR
 
+      - name: Upload Pages Artifact
+        if: matrix.post_build_steps == 'wasm_bindgen'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
       # --- Native Specific Steps ---
       - name: Archive Native Binaries
         if: matrix.post_build_steps == 'native_archive'
@@ -117,7 +125,6 @@ jobs:
 
           cd target/${{ matrix.target }}/${{ matrix.profile_dir }}
 
-          # FIX 2: We explicitly move the artifacts back to root so upload-artifact can find them
           if [ "${{ matrix.os }}" == "windows-latest" ]; then
             7z a ${CRATE_NAME}-windows-x64.zip ${CRATE_NAME}.exe
             mv ${CRATE_NAME}-windows-x64.zip ../../../
@@ -132,26 +139,21 @@ jobs:
           name: ${{ matrix.archive_name }}
           path: ${{ matrix.archive_name }}
 
-  # --- 2. PAGES DEPLOYMENT JOB ---
+  # --- 2. PAGES DEPLOYMENT JOB (Modern Method) ---
   deploy-pages:
     name: Deploy to GitHub Pages
     runs-on: ubuntu-latest
     needs: [build]
 
+    permissions:
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
     steps:
-      - name: Download WASM artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: ${{ env.CRATE_NAME }}-web.zip
-          path: ./
-
-      - name: Unzip WASM files
-        run: |
-          unzip ${{ env.CRATE_NAME }}-web.zip
-
       - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./dist
-          publish_branch: gh-pages
+        id: deployment
+        uses: actions/deploy-pages@v4
