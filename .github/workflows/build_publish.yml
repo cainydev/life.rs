@@ -7,13 +7,14 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  CRATE_NAME: "game_of_life"
 
 jobs:
   # --- 1. BUILD JOB ---
   build:
     name: Build Multi-Target
     runs-on: ${{ matrix.os }}
+    env:
+      CRATE_NAME: "game_of_life"
     strategy:
       fail-fast: false
       matrix:
