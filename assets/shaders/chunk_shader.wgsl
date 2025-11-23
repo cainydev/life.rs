@@ -12,14 +12,16 @@ struct BitChunkMaterial {
 fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     let dims = textureDimensions(data_texture);
 
+    // Map UV to pixel coordinates
     let x = clamp(u32(in.uv.x * f32(dims.x)), 0u, dims.x - 1u);
     let y = clamp(u32((1.0 - in.uv.y) * f32(dims.y)), 0u, dims.y - 1u);
 
-    let state = textureLoad(data_texture, vec2<u32>(x, y), 0).r;
+    // Load the density value (0 to 255)
+    let raw_value = textureLoad(data_texture, vec2<u32>(x, y), 0).r;
 
-    if (state > 0u) {
-        return material.color_alive;
-    } else {
-        return material.color_dead;
-    }
+    // Normalize the integer to a float factor (0.0 to 1.0)
+    let t = f32(raw_value) / 255.0;
+
+    // Linear Interpolation (Lerp)
+    return mix(material.color_dead, material.color_alive, t);
 }

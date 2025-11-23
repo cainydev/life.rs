@@ -52,7 +52,12 @@ pub struct Node {
     pub data: NodeData,
     pub population: u64,
     pub hash: u64,
+
+    /// Cached result for the standard Hashlife "Warp Speed" jump (2^(level-2) generations)
     pub result: OnceLock<Arc<Node>>,
+
+    /// Cached result for exactly 1 generation
+    pub result_step_1: OnceLock<Arc<Node>>,
 }
 
 impl PartialEq for Node {

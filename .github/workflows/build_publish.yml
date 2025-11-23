@@ -1,0 +1,192 @@
+name: Release & Pages Deployment
+
+on:
+  push:
+    branches:
+      - "master" # Trigger this workflow whenever a tag starting with 'v' is pushed
+
+env:
+  CARGO_TERM_COLOR: always
+  CRATE_NAME: "game_of_life"
+
+jobs:
+  # --- 1. BUILD JOB ---
+  build:
+    name: Build Multi-Target
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux x86_64 build
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            bin_name: ${{ env.CRATE_NAME }}
+            archive_name: ${{ env.CRATE_NAME }}-linux-x64.tar.gz
+            command: tar -czvf ${{ env.CRATE_NAME }}-linux-x64.tar.gz ${{ env.CRATE_NAME }}
+            post_build_steps: "native_archive"
+
+          # Windows x86_64 build
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            bin_name: ${{ env.CRATE_NAME }}.exe
+            archive_name: ${{ env.CRATE_NAME }}-windows-x64.zip
+            command: 7z a ${{ env.CRATE_NAME }}-windows-x64.zip ${{ env.CRATE_NAME }}.exe
+            post_build_steps: "native_archive"
+
+          # WebAssembly (WASM) build
+          - os: ubuntu-latest
+            target: wasm32-unknown-unknown
+            bin_name: ${{ env.CRATE_NAME }}.wasm
+            archive_name: ${{ env.CRATE_NAME }}-web.zip
+            command: "" # Custom script below
+            post_build_steps: "wasm_bindgen"
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+          target: ${{ matrix.target }}
+
+      # Step 1: Build the Rust/Bevy code
+      - name: Build for ${{ matrix.target }}
+        run: cargo build --release --target ${{ matrix.target }}
+
+      # --- WASM Specific Steps ---
+      - name: Configure and Bundle WASM
+        if: matrix.post_build_steps == 'wasm_bindgen'
+        run: |
+          # Install wasm-bindgen
+          cargo install wasm-bindgen-cli
+
+          # Define variables for clarity
+          CRATE_BIN_PATH="./target/wasm32-unknown-unknown/release/${{ env.CRATE_NAME }}.wasm"
+          OUT_DIR="dist"
+          OUT_NAME="index"
+
+          # Create output directory
+          mkdir -p $OUT_DIR
+
+          # Copy assets folder (if you have one)
+          cp -r assets $OUT_DIR/ || true
+
+          # Run wasm-bindgen to generate JS glue and process the WASM binary
+          wasm-bindgen --no-typescript --target web \
+              --out-dir $OUT_DIR \
+              --out-name $OUT_NAME \
+              $CRATE_BIN_PATH
+
+          # Create the full-screen index.html using the content from above
+          echo '<!DOCTYPE html>
+          <html>
+          <head>
+              <meta charset="utf-8">
+              <title>${{ env.CRATE_NAME }}</title>
+              <style>
+                  html, body {
+                      margin: 0;
+                      padding: 0;
+                      width: 100dvw;
+                      height: 100dvh;
+                      overflow: hidden;
+                      background-color: #000000;
+                  }
+                  #bevy-canvas {
+                      display: block;
+                      width: 100%;
+                      height: 100%;
+                  }
+              </style>
+          </head>
+          <body>
+              <canvas id="bevy-canvas"></canvas>
+              <script src="index.js"></script>
+          </body>
+          </html>' > $OUT_DIR/index.html
+
+          zip -r ${{ matrix.archive_name }} $OUT_DIR
+
+      # --- Native Specific Steps (Linux/Windows) ---
+      - name: Archive Native Binaries
+        if: matrix.post_build_steps == 'native_archive'
+        run: |
+          cd target/${{ matrix.target }}/release
+          ${{ matrix.command }}
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.archive_name }}
+          path: ${{ matrix.archive_name }}
+
+  # # --- 2. RELEASE JOB ---
+  # release:
+  #   name: Create GitHub Release
+  #   runs-on: ubuntu-latest
+  #   needs: [build] # Depends on all builds finishing
+  #   steps:
+  #     - name: Download all build artifacts
+  #       uses: actions/download-artifact@v4
+
+  #     - name: Create Release
+  #       id: create_release
+  #       uses: actions/create-release@v1
+  #       env:
+  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #       with:
+  #         tag_name: ${{ github.ref }}
+  #         release_name: Release ${{ github.ref }}
+  #         draft: false
+  #         prerelease: false
+
+  #     - name: Upload Linux Asset
+  #       uses: actions/upload-release-asset@v1
+  #       env:
+  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #       with:
+  #         upload_url: ${{ steps.create_release.outputs.upload_url }}
+  #         asset_path: ${{ env.CRATE_NAME }}-linux-x64.tar.gz
+  #         asset_name: ${{ env.CRATE_NAME }}-linux-x64.tar.gz
+
+  #     - name: Upload Windows Asset
+  #       uses: actions/upload-release-asset@v1
+  #       env:
+  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #       with:
+  #         upload_url: ${{ steps.create_release.outputs.upload_url }}
+  #         asset_path: ${{ env.CRATE_NAME }}-windows-x64.zip
+  #         asset_name: ${{ env.CRATE_NAME }}-windows-x64.zip
+
+  #     - name: Upload WASM/Web Asset
+  #       uses: actions/upload-release-asset@v1
+  #       env:
+  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #       with:
+  #         upload_url: ${{ steps.create_release.outputs.upload_url }}
+  #         asset_path: ${{ env.CRATE_NAME }}-web.zip
+  #         asset_name: ${{ env.CRATE_NAME }}-web.zip
+
+  # --- 3. PAGES DEPLOYMENT JOB ---
+  deploy-pages:
+    name: Deploy to GitHub Pages
+    runs-on: ubuntu-latest
+    needs: [build] # Only needs the WASM build to succeed
+    steps:
+      - name: Download WASM artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.CRATE_NAME }}-web.zip
+          path: ./
+
+      - name: Unzip WASM files
+        run: |
+          unzip ${{ env.CRATE_NAME }}-web.zip
+
+      # This deploys the contents of the ./dist directory to the gh-pages branch
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          publish_branch: gh-pages

@@ -59,12 +59,44 @@ fn render_universe(
     let buffer = viewport.get_buffer(image);
 
     // Draw
-    universe.engine.draw_to_buffer(
+    // let draw_start = Time<Real>
+
+    universe.draw_to_buffer(
         viewport.get_world_rect(),
         buffer,
         viewport.screen_w,
         viewport.screen_h,
     );
 
-    stats.insert("Population", format!("{}", universe.engine.population()));
+    // let draw_duration = draw_start.elapsed();
+
+    stats.insert("Population", format_metric(universe.population()));
+    // stats.insert(
+    //     "Draw Time",
+    //     format!("{:.2} ms", draw_duration.as_micros() as f64 / 1000.0),
+    // );
+}
+
+fn format_metric(count: u64) -> String {
+    if count < 1_000 {
+        return count.to_string();
+    }
+
+    let suffixes = ["k", "M", "B", "T", "Q"]; // Thousand, Million, Billion, Trillion, Quadrillion
+    let mut value = count as f64;
+    let mut suffix_idx = 0;
+
+    // Divide by 1000 until the number is small enough
+    while value >= 1_000.0 && suffix_idx < suffixes.len() {
+        value /= 1_000.0;
+        suffix_idx += 1;
+    }
+
+    // Format to 2 decimal places
+    let formatted = format!("{:.2}", value);
+
+    // Clean up trailing zeros and decimal point (e.g., "150.00" -> "150", "2.50" -> "2.5")
+    let cleaned = formatted.trim_end_matches('0').trim_end_matches('.');
+
+    format!("{}{}", cleaned, suffixes[suffix_idx - 1])
 }

@@ -1,3 +1,4 @@
+use bevy::math::I64Vec2;
 use bevy::platform::collections::HashSet;
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
@@ -18,8 +19,8 @@ impl Plugin for MouseDrawPlugin {
 
 #[derive(Resource, Default)]
 struct DrawingBuffer {
-    pub positions: HashSet<IVec2>,
-    pub last_pos: Option<IVec2>,
+    pub positions: HashSet<I64Vec2>,
+    pub last_pos: Option<I64Vec2>,
 }
 
 #[derive(Component)]
@@ -32,7 +33,6 @@ fn setup_draw_layer(
     mut materials: ResMut<Assets<GridLayerMaterial>>,
 ) {
     commands.spawn((
-        // Graphics plugin will handle scaling this automatically!
         PixelLayerBundle::new(
             &mut images,
             &mut meshes,
@@ -54,9 +54,11 @@ fn accumulate_drawing(
         buffer.last_pos = None;
         return;
     }
+
     let Some(cur_pos) = mouse_res.grid_pos else {
         return;
     };
+
     let prev_pos = buffer.last_pos.unwrap_or(cur_pos);
 
     let mut x = prev_pos.x;
@@ -68,7 +70,7 @@ fn accumulate_drawing(
     let mut err = (if dx > dy { dx } else { -dy }) / 2;
 
     loop {
-        buffer.positions.insert(IVec2::new(x, y));
+        buffer.positions.insert(I64Vec2::new(x, y));
         if x == cur_pos.x && y == cur_pos.y {
             break;
         }
@@ -91,9 +93,8 @@ fn commit_drawing(
     buttons: Res<ButtonInput<MouseButton>>,
 ) {
     if !buttons.pressed(MouseButton::Left) && !buffer.positions.is_empty() {
-        for pos in buffer.positions.drain() {
-            universe.set_cell(pos, true);
-        }
+        let points: Vec<I64Vec2> = buffer.positions.drain().collect();
+        universe.add_cells(points);
     }
 }
 
@@ -122,9 +123,9 @@ fn render_overlay(
     pixel_buffer.fill(0);
 
     for &pos in &buffer.positions {
-        viewport.draw_cell(pixel_buffer, pos.x as i64, pos.y as i64, 1);
+        viewport.draw_cell(pixel_buffer, pos.x as i64, pos.y as i64, 255);
     }
     if let Some(pos) = mouse_res.grid_pos {
-        viewport.draw_cell(pixel_buffer, pos.x as i64, pos.y as i64, 1);
+        viewport.draw_cell(pixel_buffer, pos.x as i64, pos.y as i64, 255);
     }
 }

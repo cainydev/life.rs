@@ -1,5 +1,6 @@
 mod simulation;
 
+use bevy::math::I64Vec2;
 use bevy::{dev_tools::fps_overlay::FpsOverlayPlugin, prelude::*};
 
 use crate::simulation::SimulationPlugin;
@@ -10,14 +11,14 @@ fn main() {
 
     app.add_plugins(DefaultPlugins.set(WindowPlugin {
         primary_window: Some(Window {
-            present_mode: bevy::window::PresentMode::AutoNoVsync,
+            canvas: Some("#bevy-canvas".into()),
             ..default()
         }),
         ..default()
     }));
 
-    app.add_plugins(FpsOverlayPlugin::default());
-    app.insert_resource(Time::<Fixed>::from_hz(3.0));
+    //app.add_plugins(FpsOverlayPlugin::default());
+    app.insert_resource(Time::<Fixed>::from_hz(30.0));
 
     app.add_plugins(SimulationPlugin);
 
@@ -32,26 +33,24 @@ fn spawn_camera(mut commands: Commands) {
 }
 
 fn spawn_initial_pattern(mut universe: ResMut<Universe>) {
-    let coords = [
-        (-4, 0),
-        (-4, -1),
-        (-3, -2),
-        (-2, -3),
-        (-1, -4),
-        (0, -4),
-        (1, -3),
-        (2, -2),
-        (3, -1),
-        (3, 0),
-        (2, 1),
-        (1, 2),
-        (0, 3),
-        (-1, 3),
-        (-2, 2),
-        (-3, 1),
+    let coords = vec![
+        I64Vec2 { x: -4, y: 0 },
+        I64Vec2 { x: -4, y: -1 },
+        I64Vec2 { x: -3, y: -2 },
+        I64Vec2 { x: -2, y: -3 },
+        I64Vec2 { x: -1, y: -4 },
+        I64Vec2 { x: 0, y: -4 },
+        I64Vec2 { x: 1, y: -3 },
+        I64Vec2 { x: 2, y: -2 },
+        I64Vec2 { x: 3, y: -1 },
+        I64Vec2 { x: 3, y: 0 },
+        I64Vec2 { x: 2, y: 1 },
+        I64Vec2 { x: 1, y: 2 },
+        I64Vec2 { x: 0, y: 3 },
+        I64Vec2 { x: -1, y: 3 },
+        I64Vec2 { x: -2, y: 2 },
+        I64Vec2 { x: -3, y: 1 },
     ];
 
-    for (x, y) in coords {
-        universe.set_cell(IVec2::new(x, y), true);
-    }
+    universe.add_cells(coords);
 }
