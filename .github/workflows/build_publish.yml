@@ -46,6 +46,17 @@ jobs:
           toolchain: stable
           target: ${{ matrix.target }}
 
+      - name: Cache Cargo registry and build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-${{ matrix.target }}-
+
       - name: Install Linux Dependencies
         if: matrix.os == 'ubuntu-latest'
         run: |
@@ -126,7 +137,6 @@ jobs:
       - name: Download WASM artifact
         uses: actions/download-artifact@v4
         with:
-          # Use the global env var to construct the name
           name: ${{ env.CRATE_NAME }}-web.zip
           path: ./
 
