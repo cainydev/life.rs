@@ -46,6 +46,12 @@ jobs:
           toolchain: stable
           target: ${{ matrix.target }}
 
+      - name: Install Linux Dependencies
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++ pkg-config libx11-dev libasound2-dev libudev-dev libwayland-dev libxkbcommon-dev
+
       - name: Build for ${{ matrix.target }}
         run: cargo build --release --target ${{ matrix.target }}
 
